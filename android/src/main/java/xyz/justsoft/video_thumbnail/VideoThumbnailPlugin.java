@@ -58,6 +58,7 @@ public class VideoThumbnailPlugin implements FlutterPlugin, MethodCallHandler {
         final Map<String, Object> args = call.arguments();
 
         final String video = (String) args.get("video");
+        @SuppressWarnings("unchecked")
         final HashMap<String, String> headers = (HashMap<String, String>) args.get("headers");
         final int format = (int) args.get("format");
         final int maxh = (int) args.get("maxh");
@@ -92,7 +93,7 @@ public class VideoThumbnailPlugin implements FlutterPlugin, MethodCallHandler {
         });
     }
 
-    private static Bitmap.CompressFormat intToFormat(int format) {
+    private static Bitmap.CompressFormat intToFormat(int format, int quality) {
         switch (format) {
             default:
             case 0:
@@ -100,6 +101,11 @@ public class VideoThumbnailPlugin implements FlutterPlugin, MethodCallHandler {
             case 1:
                 return Bitmap.CompressFormat.PNG;
             case 2:
+                if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    return quality == 100
+                            ? Bitmap.CompressFormat.WEBP_LOSSLESS
+                            : Bitmap.CompressFormat.WEBP_LOSSY;
+                }
                 return Bitmap.CompressFormat.WEBP;
         }
     }
@@ -125,7 +131,7 @@ public class VideoThumbnailPlugin implements FlutterPlugin, MethodCallHandler {
             throw new NullPointerException();
 
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        bitmap.compress(intToFormat(format), quality, stream);
+        bitmap.compress(intToFormat(format, quality), quality, stream);
         bitmap.recycle();
         if (bitmap == null)
             throw new NullPointerException();
@@ -137,7 +143,7 @@ public class VideoThumbnailPlugin implements FlutterPlugin, MethodCallHandler {
             int quality) {
         // Log.d(TAG, String.format("buildThumbnailFile( format:%d, maxh:%d, maxw:%d,
         // timeMs:%d, quality:%d )", format, maxh, maxw, timeMs, quality));
-        final byte bytes[] = buildThumbnailData(vidPath, headers, format, maxh, maxw, timeMs, quality);
+        final byte[] bytes = buildThumbnailData(vidPath, headers, format, maxh, maxw, timeMs, quality);
         final String ext = formatExt(format);
         final int i = vidPath.lastIndexOf(".");
         String fullpath = vidPath.substring(0, i + 1) + ext;
@@ -261,7 +267,8 @@ public class VideoThumbnailPlugin implements FlutterPlugin, MethodCallHandler {
 
     private static void setDataSource(String video, final MediaMetadataRetriever retriever) throws IOException {
         File videoFile = new File(video);
-        FileInputStream inputStream = new FileInputStream(videoFile.getAbsolutePath());
-        retriever.setDataSource(inputStream.getFD());
+        try (FileInputStream inputStream = new FileInputStream(videoFile.getAbsolutePath())) {
+            retriever.setDataSource(inputStream.getFD());
+        }
     }
 }
